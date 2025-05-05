@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: Sample Go Microservice
+  title: Sample Todo Service
   version: 1.0.0
 paths:
   /health:
@@ -16,3 +16,44 @@ paths:
                 properties:
                   status:
                     type: string
+  /todos:
+    get:
+      summary: List all todos
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Todo'
+    post:
+      summary: Create a new todo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+components:
+  schemas:
+    Todo:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        done:
+          type: boolean
