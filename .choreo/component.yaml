@@ -1,0 +1,14 @@
+# +required The configuration file schema version
+schemaVersion: 1.2
+
+# +optional Incoming connection details for the component
+endpoints:
+  - name: todo-service
+    displayName: Go Todo Service
+    service:
+      basePath: /todo-service
+      port: 8080
+    type: REST
+    networkVisibilities:
+      - Public
+    schemaFilePath: openapi.yaml
