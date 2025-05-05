@@ -1,0 +1,95 @@
+steps:
+  - name: Secrets Scan
+    template: gitleaks-scan
+
+  - name: Static Code Analysis
+    template: semgrep-sast
+
+  - name: IaC Scan
+    template: choreo/checkov-scan@v1
+
+  - name: Dependency Scan
+    template: govuln-scan
+
+  - name: API Spec Lint
+    template: spectral-lint
+
+  - name: Unit Tests
+    template: run-unit-tests
+
+  - - name: Build Image
+      template: choreo/buildpack-build@v1
+    - name: Image Vulnerability Scan
+      template: choreo/trivy-scan@v1
+
+  - name: Digital Signing
+    template: cosign-sign-image
+    arguments:
+      parameters:
+        - name: image_full_tag
+          value: "{{steps.Build Image.outputs.parameters.image_full_tag}}"
+
+templates:
+  - name: gitleaks-scan
+    inlineScript: |
+      #!/bin/bash
+      echo "🔒 Running GitLeaks for secrets detection..."
+      gitleaks detect -v --source ./
+    image: "zricethezav/gitleaks:latest"
+
+  - name: semgrep-sast
+    inlineScript: |
+      #!/bin/bash
+      echo "🔍 Running Semgrep static code analysis..."
+      semgrep scan --config auto
+    image: "returntocorp/semgrep:latest"
+
+  - name: govuln-scan
+    inlineScript: |
+      #!/bin/bash
+      echo "📦 Running govulncheck for dependency scanning..."
+      go install golang.org/x/vuln/cmd/govulncheck@latest
+      govulncheck ./...
+    image: "golang:1.22"
+
+  - name: spectral-lint
+    inlineScript: |
+      #!/bin/bash
+      echo "📑 Running Spectral for OpenAPI lint..."
+      spectral lint openapi.yaml
+    image: "stoplight/spectral:latest"
+
+  - name: run-unit-tests
+    inlineScript: |
+      #!/bin/bash
+      echo "✅ Running unit tests..."
+      go test ./... -v
+    image: "golang:1.22"
+
+  - name: cosign-sign-image
+    script:
+      image: "gcr.io/projectsigstore/cosign:v2.2.0"
+      command: ["sh"]
+      source: |
+        #!/bin/bash
+        IMAGE_TAG="{{inputs.parameters.image_full_tag}}"
+        echo "🔏 Signing image $IMAGE_TAG"
+        cosign sign --key /cosign/cosign.key "$IMAGE_TAG"
+      env:
+        - name: COSIGN_PASSWORD
+          secretRef: {{SECRET.COSIGN_PASSWORD}}
+      volumeMounts:
+        - name: cosign-key-volume
+          mountPath: /cosign
+    inputs:
+      parameters:
+        - name: image_full_tag
+
+volumeClaimTemplates:
+  - metadata:
+      name: "cosign-key-volume"
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: "1Gi"
